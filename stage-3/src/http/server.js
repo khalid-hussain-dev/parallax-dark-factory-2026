@@ -254,7 +254,6 @@ async function route(req, res) {
       const current = state.reservations.find(item => item.reference === reference && item.user_id === userId);
       if (!current) return D.amendReservation(state, userId, reference, data);
       if (Object.hasOwn(data, 'expected_revision') && data.expected_revision !== current.revision) fail(409, 'stale_revision');
-      validateTableSelection(data);
       return D.amendReservation(state, userId, reference, data);
     });
     return send(res, 200, result);
