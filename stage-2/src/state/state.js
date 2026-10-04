@@ -249,7 +249,8 @@ function validateImportedState(value) {
           new Set(moves.map(move => move.reference)).size !== moves.length) apiError(422, 'validation_failed');
       for (let i = 0; i < moves.length; i++) {
         const move = moves[i]; const response = responses[i];
-        if ((Object.hasOwn(move, 'table_id') || Object.hasOwn(move, 'table_ids')) && !sameReservationTables(move, response) ||
+        if ((Object.hasOwn(move, 'table_id') && Object.hasOwn(move, 'table_ids')) ||
+            ((Object.hasOwn(move, 'table_id') || Object.hasOwn(move, 'table_ids')) && !sameReservationTables(move, response)) ||
             (Object.hasOwn(move, 'starts_at_local') && move.starts_at_local !== response.starts_at_local) ||
             (Object.hasOwn(move, 'party_size') && move.party_size !== response.party_size)) apiError(422, 'validation_failed');
       }
