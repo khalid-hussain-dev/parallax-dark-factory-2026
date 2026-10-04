@@ -23,16 +23,15 @@ function fail(status, code) { const e = new Error(code); e.status = status; e.co
 function errorBody(error) { return { error: { code: error.code || 'internal_error', message: error.message || 'Request failed' } }; }
 
 async function bodyOf(req) {
-  const chunks = []; let length = 0;
+  const chunks = [];
   for await (const chunk of req) {
-    length += chunk.length;
-    if (length > 1024 * 1024) fail(400, 'malformed_request');
     chunks.push(chunk);
   }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { fail(400, 'malformed_request'); }
 }
 function requireObject(value) { if (!stateFns.object(value)) fail(400, 'malformed_request'); }
 function fieldType(body, key, type) { if (Object.hasOwn(body, key) && typeof body[key] !== type) fail(400, 'malformed_request'); }
+function pathId(value) { try { return decodeURIComponent(value); } catch { fail(404, 'not_found'); } }
 function validateCreate(body) {
   for (const key of ['restaurant_id', 'table_id', 'starts_at_local']) {
     if (!Object.hasOwn(body, key)) fail(422, 'validation_failed');
@@ -133,7 +132,7 @@ async function route(req, res) {
   if (req.method === 'GET' && path === '/restaurants') return send(res, 200, { restaurants: state.restaurants.map(r => ({ id: r.id, name: r.name, timezone: r.timezone })) });
   const restaurantMatch = path.match(/^\/restaurants\/([^/]+)$/);
   if (req.method === 'GET' && restaurantMatch) {
-    const restaurant = state.restaurants.find(r => r.id === decodeURIComponent(restaurantMatch[1]));
+    const restaurant = state.restaurants.find(r => r.id === pathId(restaurantMatch[1]));
     if (!restaurant) fail(404, 'not_found');
     return send(res, 200, publicRestaurant(restaurant));
   }
@@ -148,7 +147,7 @@ async function route(req, res) {
   if (req.method === 'GET' && path === '/reservations') return send(res, 200, D.listReservations(state, userId));
   const detailMatch = path.match(/^\/reservations\/([^/]+)$/);
   const cancelMatch = path.match(/^\/reservations\/([^/]+)\/cancel$/);
-  if (req.method === 'GET' && detailMatch) return send(res, 200, D.getReservation(state, userId, decodeURIComponent(detailMatch[1])));
+  if (req.method === 'GET' && detailMatch) return send(res, 200, D.getReservation(state, userId, pathId(detailMatch[1])));
   if (req.method === 'POST' && path === '/reservations') {
     const data = await bodyOf(req); requireObject(data); const key = requireIdempotency(req);
     const outcome = await idempotent(userId, key, req.method, path, data, async () => {
@@ -161,13 +160,13 @@ async function route(req, res) {
     const chunks = []; for await (const chunk of req) chunks.push(chunk);
     const raw = Buffer.concat(chunks).toString('utf8');
     if (raw.trim()) { let data; try { data = JSON.parse(raw); } catch { fail(400, 'malformed_request'); } requireObject(data); }
-    const result = await serialized(() => D.cancelReservation(state, userId, decodeURIComponent(cancelMatch[1])));
+    const result = await serialized(() => D.cancelReservation(state, userId, pathId(cancelMatch[1])));
     return send(res, 200, result);
   }
   if (req.method === 'PATCH' && detailMatch) {
     const data = await bodyOf(req); requireObject(data);
     for (const k of ['table_id', 'starts_at_local']) fieldType(data, k, 'string');
-    const result = await serialized(() => D.amendReservation(state, userId, decodeURIComponent(detailMatch[1]), data));
+    const result = await serialized(() => D.amendReservation(state, userId, pathId(detailMatch[1]), data));
     return send(res, 200, result);
   }
   if (req.method === 'POST' && path === '/reservation-moves') {
