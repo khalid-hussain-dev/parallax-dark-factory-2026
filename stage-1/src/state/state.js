@@ -75,11 +75,8 @@ async function fixtureState(fixture) {
   for (const seed of fixture.reservations) {
     if (!object(seed) || !validId(seed.id) || !validId(seed.reference) || !validId(seed.user_id) || !state.users.some(u => u.user_id === seed.user_id) || typeof seed.restaurant_id !== 'string' || typeof seed.table_id !== 'string' || typeof seed.starts_at_local !== 'string' || !Number.isInteger(seed.party_size) || seed.party_size < 1) apiError(422, 'validation_failed');
     if (state.reservations.some(r => r.reservation_id === seed.id || r.reference === seed.reference)) apiError(422, 'validation_failed');
-    try { domain.createReservation(state, seed.user_id, seed, Date.now()); }
+    try { domain.seedReservation(state, seed, Date.now()); }
     catch { apiError(422, 'validation_failed'); }
-    const record = state.reservations[state.reservations.length - 1];
-    record.reservation_id = seed.id;
-    record.reference = seed.reference;
   }
   return state;
 }
