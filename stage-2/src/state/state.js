@@ -177,7 +177,8 @@ function validateImportedState(value) {
     let selection;
     try { selection = domain.selectTables(restaurant, { table_ids: r.table_ids }); }
     catch { apiError(422, 'validation_failed'); }
-    if (selection.ids.length !== r.table_ids.length || selection.ids.some((id, index) => id !== r.table_ids[index])) apiError(422, 'validation_failed');
+    // Combination membership is unordered; normalize accepted pairs to the restaurant's declared order.
+    r.table_ids = selection.ids;
     if (r.party_size > selection.tables.reduce((sum, table) => sum + table.capacity, 0)) apiError(422, 'validation_failed');
     if (r.table_ids.length === 1) r.table_id = r.table_ids[0];
     else if (Object.hasOwn(r, 'table_id')) apiError(422, 'validation_failed');
