@@ -18,6 +18,11 @@ function apiError(status, code) {
 
 function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 function validId(value) { return typeof value === 'string' && value.length > 0 && value.length <= 64; }
+function stable(value) {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${stable(value[k])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
 
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -104,12 +109,16 @@ function validateImportedState(value) {
     if (!validId(r.reservation_id) || !validId(r.reference) || !users.has(r.user_id) || !restaurant || !restaurant.tables.some(t => t.id === r.table_id) || !Number.isInteger(r.party_size) || r.party_size < 1 || !['confirmed', 'cancelled'].includes(r.status) || typeof r.starts_at_local !== 'string' || typeof r.starts_at !== 'string' || typeof r.ends_at !== 'string' || typeof r.created_at !== 'string' || !Number.isFinite(r.starts_at_ms) || !Number.isFinite(r.ends_at_ms) || r.ends_at_ms <= r.starts_at_ms || ids.has(r.reservation_id) || refs.has(r.reference)) apiError(422, 'validation_failed');
     ids.add(r.reservation_id); refs.add(r.reference);
   }
-  const receiptKeys = new Set();
+  const receiptKeys = new Set(); const receiptBodies = new Map();
   for (const receipt of state.receipts) {
-    if (!object(receipt) || !users.has(receipt.user_id) || typeof receipt.key !== 'string' || receipt.key.length < 1 || receipt.key.length > 255 || typeof receipt.method !== 'string' || typeof receipt.path !== 'string' || !object(receipt.body) || receipt.status !== 201 || !object(receipt.response)) apiError(422, 'validation_failed');
-    const unique = `${receipt.user_id}\0${receipt.key}`;
+    if (!object(receipt) || !users.has(receipt.user_id) || typeof receipt.key !== 'string' || receipt.key.length < 1 || receipt.key.length > 255 || receipt.method !== 'POST' || !['/reservations', '/reservation-moves'].includes(receipt.path) || !object(receipt.body) || receipt.status !== 201 || !object(receipt.response)) apiError(422, 'validation_failed');
+    const unique = `${receipt.user_id}\0${receipt.key}\0${receipt.method}\0${receipt.path}`;
     if (receiptKeys.has(unique)) apiError(422, 'validation_failed');
     receiptKeys.add(unique);
+    const scope = `${receipt.user_id}\0${receipt.key}`;
+    const body = stable(receipt.body);
+    if (receiptBodies.has(scope) && receiptBodies.get(scope) !== body) apiError(422, 'validation_failed');
+    receiptBodies.set(scope, body);
   }
   return state;
 }

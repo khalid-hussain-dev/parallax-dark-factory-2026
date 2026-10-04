@@ -61,11 +61,14 @@ function requireIdempotency(req) {
 }
 function idempotent(userId, key, method, path, body, action) {
   return serialized(async () => {
-    const receipt = state.receipts.find(r => r.user_id === userId && r.key === key);
+    const receipts = state.receipts.filter(r => r.user_id === userId && r.key === key);
+    const bodyValue = canonical(body);
+    const receipt = receipts.find(r => r.method === method && r.path === path);
     if (receipt) {
-      if (receipt.method !== method || receipt.path !== path || canonical(receipt.body) !== canonical(body)) fail(409, 'idempotency_key_reuse');
+      if (canonical(receipt.body) !== bodyValue) fail(409, 'idempotency_key_reuse');
       return { status: 200, body: structuredClone(receipt.response) };
     }
+    if (receipts.some(r => canonical(r.body) !== bodyValue)) fail(409, 'idempotency_key_reuse');
     const result = await action();
     const response = structuredClone(result.body);
     state.receipts.push({ user_id: userId, key, method, path, body: structuredClone(body), status: result.status, response });
