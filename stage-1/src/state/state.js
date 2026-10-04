@@ -24,6 +24,15 @@ function stable(value) {
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${stable(value[k])}`).join(',')}}`;
   return JSON.stringify(value);
 }
+function validRfc3339(value) {
+  const match = typeof value === 'string' && value.match(/^(\d{4})-(\d{2})-(\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/);
+  if (!match || !Number.isFinite(Date.parse(value))) return false;
+  const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+  if (month < 1 || month > 12) return false;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day >= 1 && day <= days[month - 1];
+}
 
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -140,7 +149,7 @@ function validateImportedState(value) {
   for (const r of state.reservations) {
     if (!object(r)) apiError(422, 'validation_failed');
     const restaurant = state.restaurants.find(x => x.id === r.restaurant_id);
-    if (!validId(r.reservation_id) || typeof r.reference !== 'string' || !/^[A-Z0-9]{6,12}$/.test(r.reference) || !users.has(r.user_id) || !restaurant || !restaurant.tables.some(t => t.id === r.table_id) || !Number.isInteger(r.party_size) || r.party_size < 1 || !['confirmed', 'cancelled'].includes(r.status) || typeof r.starts_at_local !== 'string' || typeof r.starts_at !== 'string' || typeof r.ends_at !== 'string' || typeof r.created_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(r.created_at) || !Number.isFinite(r.starts_at_ms) || !Number.isFinite(r.ends_at_ms) || r.ends_at_ms - r.starts_at_ms !== restaurant.reservation_duration_minutes * 60000 || ids.has(r.reservation_id) || refs.has(r.reference)) apiError(422, 'validation_failed');
+    if (!validId(r.reservation_id) || typeof r.reference !== 'string' || !/^[A-Z0-9]{6,12}$/.test(r.reference) || !users.has(r.user_id) || !restaurant || !restaurant.tables.some(t => t.id === r.table_id) || !Number.isInteger(r.party_size) || r.party_size < 1 || !['confirmed', 'cancelled'].includes(r.status) || typeof r.starts_at_local !== 'string' || typeof r.starts_at !== 'string' || typeof r.ends_at !== 'string' || !validRfc3339(r.created_at) || !Number.isFinite(r.starts_at_ms) || !Number.isFinite(r.ends_at_ms) || r.ends_at_ms - r.starts_at_ms !== restaurant.reservation_duration_minutes * 60000 || ids.has(r.reservation_id) || refs.has(r.reference)) apiError(422, 'validation_failed');
     try {
       const start = time.validateWindow(restaurant, r.starts_at_local);
       if (start !== r.starts_at_ms || r.starts_at !== time.timestamp(start, restaurant.timezone) || r.ends_at !== time.timestamp(r.ends_at_ms, restaurant.timezone) || !Number.isFinite(Date.parse(r.created_at))) apiError(422, 'validation_failed');
