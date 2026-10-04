@@ -1,38 +1,39 @@
-# PARALLAX Tablelight — Stage 1 delivery plan
+# PARALLAX Tablelight — Stage 2 delivery plan
 
 ## Goal and scope
 
-Deliver only the Tablekeeper Stage 1 API in `stage-1/`, matching the complete official Stage 1 specification. The service must build and start from a clean checkout, listen on `0.0.0.0` at `PORT` (default `8080`), run in one container without runtime outbound access, and include `Dockerfile` and `RUN.md`. Do not add browser UI or later-stage behavior.
+Carry the complete Stage 1 service forward into `stage-2/` and add the required browser reservation experience and approved pair-table bookings. Stage 1 remains intact; no Stage 3 or Stage 4 work. The two full official specifications are the contract. The service must build and run in one container on `0.0.0.0:$PORT` (default 8080) without runtime outbound networking.
 
 ## Ownership and boundaries
 
-| Owner | Files / responsibility | Completion evidence |
+| Owner | Files / responsibility | Acceptance evidence |
 |---|---|---|
-| Planner | `stage-1/src/domain/**`: restaurant-local time and DST conversion, availability, reservation validation and occupancy, cancellation/amendment, all-or-nothing moves | Unit-level edge probes for gap/fold resolution and half-open intervals; integrated HTTP checks for conflicts and atomic move behavior |
-| Implementer | `stage-1/src/http/**`, `stage-1/src/state/**`, `stage-1/Dockerfile`, `stage-1/RUN.md`, package metadata: HTTP routing/errors/authentication, fixture handling, idempotency, export/import, deployment | Clean Docker build and isolated HTTP checks for status/error behavior, auth, replay/concurrency, and import/export |
-| Reviewer | Independent full-contract review of the integrated revision; no overlapping implementation edits | Evidence-backed findings with paths/lines and spec clauses, sent directly to the author and Planner; focused re-review after any material correction |
-| Planner + Implementer | Agree on the canonical state/domain interface before edits; keep implementation paths disjoint | Shared interface: canonical arrays for users, restaurants, reservations, tokens and idempotency receipts; millisecond epochs for occupancy |
+| Planner | `stage-2/src/domain/**`, `stage-2/src/state/**`: carry forward and extend domain/state for `combinable` pairs, set-based occupancy/capacity, combined seed/import validation, single and combined API invariants | Stage 1 regression checks; options ordering/capacity/conflicts; pair restrictions, atomic amendments/moves/cancellation, Stage 1 export import and timestamps/credentials/receipts preserved |
+| Implementer | `stage-2/src/http/**`, `stage-2/src/ui/**`, static assets, `stage-2/Dockerfile`, `stage-2/RUN.md`, package metadata: carry forward API routing and add HTML routes/browser interactions, authentication/lookup/booking/cancel, responsive visual system, async search and uncertain idempotent recovery | Browser checks at 375px and desktop, required routes/test IDs and flows; competing search/booking outcomes; combined options; clean isolated Docker runtime |
+| Reviewer | Independent reading of both complete specs and adversarial review of integrated `stage-2/`; run independent browser/API/container checks | Evidence-backed findings sent directly to author and Planner, exact revision and commands/results; focused re-review of fixes |
+
+Shared interface: preserve Stage 1 state keys and domain semantics. Reservation records carry canonical `table_ids` arrays; single-table records keep the Stage 1 `table_id` compatibility field in public responses. Occupancy checks consider every member table. HTTP/server writes, idempotency receipt resolution and mutations remain serialized. Browser assets call only the service API; pending booking body/key remains in page memory across export/import.
 
 ## Dependencies and integration
 
-1. Read the complete official Stage 1 specification before implementation or review; use it as the acceptance contract.
-2. Confirm all seats use the selected host checkout. Planner owns domain files; Implementer owns HTTP/state/deployment files.
-3. Integrate the disjoint modules through the shared state shape. Serialize writes around idempotency lookup, domain mutation and receipt persistence so concurrent retries and conflicts remain atomic.
-4. Have Reviewer inspect the integrated revision against every requirement; send material defects to the owner and re-review corrected behavior.
-5. Build and run the service in a clean Docker container with outbound networking disabled. Exercise the written contract, not only any partial event harness.
-6. Commit the verified Stage 1 result with traceable history. Keep pre-existing root README changes untouched and stop before Stage 2.
+1. Both seats use the selected shared checkout. Stage 2 begins from the complete `stage-1/` service; all implementation changes stay in `stage-2/`.
+2. Planner extends the copied domain/state modules first and sends the exact exported API/state shape to Implementer. Implementer integrates routes and UI without editing domain/state modules.
+3. Preserve existing Stage 1 request behavior, statuses and import compatibility while accepting Stage 2 combined-table exports and seeds.
+4. Reviewer audits both full specs, the integrated revision and runnable behaviors; fix only evidenced defects.
+5. Build a fresh image and exercise it under `--network none`; run the official Stage 2 harness from the kickoff checkout in isolated mode using a new output directory.
+6. Commit the complete reviewed Stage 2 result with traceable history and leave the pre-existing root README modification untouched.
 
-## Acceptance evidence
+## Highest-risk cases
 
-- Docker builds from `stage-1/`; `RUN.md` starts the image with `PORT`; `/health` becomes healthy within 60 seconds.
-- Auth, fixture reset, public reads, bookings, cancellation/amendment, idempotency, moves, and export/import satisfy the stated status codes, error bodies, ownership rules and preservation requirements.
-- Concurrent conflicting writes cannot double-book; identical unused-key requests have one `201` and successful `200` replays; failed moves/imports leave state unchanged.
-- Berlin and New York spring gaps and fall folds follow the specified offsets and absolute-duration rules; adjacent half-open intervals do not conflict.
-- Reviewer findings, corrections, exact check commands/results, remaining gaps, and commit are recorded in the coordinator report.
+- Out-of-order search responses must not overwrite a newer query; conflict refreshes must preserve the attempted form.
+- Lost booking responses retry the identical body and idempotency key and never show speculative confirmation.
+- Combined occupancy, capacity, allowed pairs, ordering, and atomic moves must hold for concurrent requests and every read.
+- Export/import must preserve Stage 1 credentials/tokens, records, receipts and pending browser retry identity across upgrade.
+- Responsive UI must expose every required test ID, readable labels, visible keyboard focus, adequate contrast and no horizontal scrolling at 375px.
 
-## Main risks and assumptions
+## Completion evidence
 
-- The prepared kickoff checkout and event harness are absent from this repository; the official specification is retrieved from its supplied primary URL. Treat any harness as partial evidence if later found.
-- Concurrent writes must share one serialization boundary, including successful receipt persistence.
-- Import validation must fully validate a replacement before atomically swapping it in, while preserving valid exported identities and credentials.
-- The container's `--network none` mode prevents host-side port access in this Docker environment; use container-loopback HTTP probes for isolated runtime checks.
+- `stage-2/Dockerfile` builds from a clean checkout; `RUN.md` starts a single network-isolated-capable container using `PORT`; `/health` and all required API and browser routes work.
+- Reviewer accepts the integrated revision; material findings have a verified correction or are reported as a blocker.
+- Exact Docker, browser/API probe and official harness commands and outputs are recorded. No harness pass is inferred from partial checks.
+- Commit, seat contributions, handoffs, elapsed time and exposed usage data, limitations and remaining gaps are reported.
