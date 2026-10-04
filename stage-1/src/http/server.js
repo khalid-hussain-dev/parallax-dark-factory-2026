@@ -159,7 +159,7 @@ async function route(req, res) {
   if (req.method === 'POST' && cancelMatch) {
     const chunks = []; for await (const chunk of req) chunks.push(chunk);
     const raw = Buffer.concat(chunks).toString('utf8');
-    if (raw.trim()) { let data; try { data = JSON.parse(raw); } catch { fail(400, 'malformed_request'); } requireObject(data); }
+    if (raw.length > 0) { let data; try { data = JSON.parse(raw); } catch { fail(400, 'malformed_request'); } requireObject(data); }
     const result = await serialized(() => D.cancelReservation(state, userId, pathId(cancelMatch[1])));
     return send(res, 200, result);
   }
