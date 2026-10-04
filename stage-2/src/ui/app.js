@@ -5,6 +5,7 @@
   const tokenKey = 'tablelight-token';
   const nameKey = 'tablelight-name';
   let restaurants = [];
+  const restaurantDetails = new Map();
   let selectedSeat = null;
   let pendingBooking = null;
   let completedBooking = null;
@@ -26,6 +27,13 @@
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
   const nameForIds = (restaurant, ids) => ids.map(id => restaurant.tables.find(table => table.id === id)?.label || id).join(' + ');
+
+  async function restaurantDetail(id) {
+    if (restaurantDetails.has(id)) return restaurantDetails.get(id);
+    const detail = await request(`/restaurants/${encodeURIComponent(id)}`);
+    restaurantDetails.set(id, detail);
+    return detail;
+  }
 
   async function request(path, options = {}) {
     const headers = new Headers(options.headers || {});
@@ -104,16 +112,16 @@
       const ref = document.getElementById('lookup-reference').value.trim();
       const result = document.getElementById('lookup-result');
       result.innerHTML = '';
-      try { showReservation(await request(`/reservations/${encodeURIComponent(ref)}`), result); }
+      try { await showReservation(await request(`/reservations/${encodeURIComponent(ref)}`), result); }
       catch (error) { result.innerHTML = message('reservation-error', 'error', error.status === 401 ? 'Log in to find your booking.' : error.status === 404 ? 'We could not find that booking for this account.' : error.message); }
     });
   }
 
-  function showReservation(reservation, target) {
-    const restaurant = restaurants.find(item => item.id === reservation.restaurant_id);
-    const restaurantName = restaurant?.name || reservation.restaurant_id;
+  async function showReservation(reservation, target) {
+    const restaurant = await restaurantDetail(reservation.restaurant_id);
+    const restaurantName = restaurant.name || reservation.restaurant_id;
     const ids = reservation.table_ids || [reservation.table_id];
-    const labels = restaurant ? nameForIds(restaurant, ids) : ids.join(' + ');
+    const labels = nameForIds(restaurant, ids);
     target.innerHTML = `<article class="reservation-card" data-testid="reservation-detail">
       <div class="reservation-top"><div><p class="eyebrow">Booking ${esc(reservation.reference)}</p><h2>${esc(restaurantName)}</h2></div><span class="status" data-testid="reservation-status">${esc(reservation.status)}</span></div>
       <p class="reservation-info"><span data-testid="reservation-tables">${esc(labels)}</span><br>${esc(reservation.starts_at_local.replace('T', ' · '))} · Party of ${esc(reservation.party_size)}</p>
@@ -121,7 +129,7 @@
     </article>`;
     document.getElementById('cancel-booking')?.addEventListener('click', async event => {
       event.currentTarget.disabled = true;
-      try { showReservation(await request(`/reservations/${encodeURIComponent(reservation.reference)}/cancel`, { method: 'POST', body: '{}' }), target); }
+      try { await showReservation(await request(`/reservations/${encodeURIComponent(reservation.reference)}/cancel`, { method: 'POST', body: '{}' }), target); }
       catch (error) { event.currentTarget.disabled = false; target.insertAdjacentHTML('beforeend', message('reservation-error', 'error', error.message || 'This reservation could not be cancelled.')); }
     });
   }
@@ -173,6 +181,7 @@
         request(`/availability?restaurant_id=${encodeURIComponent(query.restaurant_id)}&date=${encodeURIComponent(query.date)}&party_size=${encodeURIComponent(query.party_size)}`),
       ]);
       if (sequence !== searchSequence) return;
+      restaurantDetails.set(venue.id, venue);
       lastSearch = { ...query };
       renderAvailability(venue, availability, preserveBooking, party);
     } catch (error) {
@@ -280,7 +289,7 @@
     const host = document.getElementById('confirmation-host');
     if (!host || !selectedSeat) return;
     const ids = reservation.table_ids || selectedSeat.table_ids;
-    const labels = nameForIds({ tables: restaurants.find(item => item.id === selectedSeat.restaurant_id)?.tables || [] }, ids);
+    const labels = selectedSeat.table_labels || nameForIds(restaurantDetails.get(selectedSeat.restaurant_id) || { tables: [] }, ids);
     host.innerHTML = `<section class="panel confirmation-card" data-testid="confirmation"><span class="confirmation-badge">Reservation confirmed</span><h2>We’ll save you a seat.</h2><span class="reference" data-testid="confirmation-reference">${esc(reservation.reference)}</span><p class="confirmation-details" data-testid="confirmation-details">${esc(selectedSeat.restaurant_name)} · ${esc(labels)} · ${esc(reservation.starts_at_local.replace('T', ' at '))}</p><p class="confirmation-details"><strong>Tables:</strong> <span data-testid="confirmation-tables">${esc(labels)}</span></p><p class="confirmation-details">Keep this reference handy if you need to look up your booking.</p></section>`;
   }
 
