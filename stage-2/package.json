@@ -1,0 +1,7 @@
+{
+  "name": "parallax-tablelight-stage-2",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": { "start": "node src/http/server.js" },
+  "engines": { "node": ">=20" }
+}
