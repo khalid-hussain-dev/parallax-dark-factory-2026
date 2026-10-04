@@ -133,7 +133,9 @@ async function route(req, res) {
   if (req.method === 'GET' && path === '/restaurants') return send(res, 200, { restaurants: state.restaurants.map(r => ({ id: r.id, name: r.name, timezone: r.timezone })) });
   const restaurantMatch = path.match(/^\/restaurants\/([^/]+)$/);
   if (req.method === 'GET' && restaurantMatch) {
-    const restaurant = state.restaurants.find(r => r.id === pathId(restaurantMatch[1]));
+    const id = pathId(restaurantMatch[1]);
+    if (id.length > 64) fail(422, 'validation_failed');
+    const restaurant = state.restaurants.find(r => r.id === id);
     if (!restaurant) fail(404, 'not_found');
     return send(res, 200, publicRestaurant(restaurant));
   }
