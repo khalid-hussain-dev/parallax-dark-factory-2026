@@ -177,6 +177,13 @@ async function route(req, res) {
   if (req.method === 'POST' && path === '/reservation-moves') {
     const data = await bodyOf(req); requireObject(data); const key = requireIdempotency(req);
     const outcome = await idempotent(userId, key, req.method, path, data, async () => {
+      if (Array.isArray(data.moves)) {
+        for (const move of data.moves) {
+          if (!stateFns.object(move)) continue;
+          for (const field of ['table_id', 'starts_at_local']) fieldType(move, field, 'string');
+          if (Object.hasOwn(move, 'party_size') && typeof move.party_size !== 'number') fail(422, 'validation_failed');
+        }
+      }
       if (Array.isArray(data.moves) && data.moves.some(move => stateFns.object(move) && typeof move.table_id === 'string' && move.table_id.length > 64)) fail(422, 'validation_failed');
       return { status: 201, body: D.moveReservations(state, userId, data.moves) };
     });
