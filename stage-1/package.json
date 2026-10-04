@@ -1,0 +1,7 @@
+{
+  "name": "tablelight-stage-1",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "start": "node src/http/server.js" },
+  "engines": { "node": ">=20" }
+}
