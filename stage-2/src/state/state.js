@@ -141,6 +141,29 @@ async function fixtureState(fixture) {
   return state;
 }
 
+function validateReceiptReservation(value, receiptUserId, state) {
+  if (!object(value) || !validId(value.reservation_id) || !validReference(value.reference) ||
+      !validId(value.restaurant_id) || !Number.isInteger(value.party_size) || value.party_size < 1 ||
+      value.status !== 'confirmed' || typeof value.starts_at_local !== 'string' ||
+      !validRfc3339(value.starts_at) || !validRfc3339(value.ends_at) || !validRfc3339(value.created_at)) return false;
+  const saved = state.reservations.find(r => r.reservation_id === value.reservation_id &&
+    r.reference === value.reference && r.user_id === receiptUserId && r.restaurant_id === value.restaurant_id);
+  const restaurant = state.restaurants.find(r => r.id === value.restaurant_id);
+  if (!saved || !restaurant) return false;
+  const tableIds = Array.isArray(value.table_ids) ? value.table_ids :
+    (typeof value.table_id === 'string' ? [value.table_id] : null);
+  if (!tableIds || (Object.hasOwn(value, 'table_id') &&
+      (tableIds.length !== 1 || value.table_id !== tableIds[0]))) return false;
+  try {
+    const selection = domain.selectTables(restaurant, { table_ids: tableIds });
+    if (selection.ids.length !== tableIds.length || selection.ids.some((id, index) => id !== tableIds[index]) ||
+        value.party_size > selection.tables.reduce((sum, table) => sum + table.capacity, 0)) return false;
+    const startsAt = time.validateWindow(restaurant, value.starts_at_local);
+    return value.starts_at === time.timestamp(startsAt, restaurant.timezone) &&
+      value.ends_at === time.timestamp(startsAt + restaurant.reservation_duration_minutes * 60000, restaurant.timezone);
+  } catch { return false; }
+}
+
 function validateImportedState(value) {
   if (!object(value) || !Array.isArray(value.users) || !Array.isArray(value.restaurants) || !Array.isArray(value.reservations) || !Array.isArray(value.tokens) || !Array.isArray(value.receipts)) apiError(422, 'validation_failed');
   const state = structuredClone(value);
@@ -200,6 +223,16 @@ function validateImportedState(value) {
   const receiptKeys = new Set(); const receiptBodies = new Map();
   for (const receipt of state.receipts) {
     if (!object(receipt) || !users.has(receipt.user_id) || typeof receipt.key !== 'string' || receipt.key.length < 1 || receipt.key.length > 255 || receipt.method !== 'POST' || !['/reservations', '/reservation-moves'].includes(receipt.path) || !object(receipt.body) || receipt.status !== 201 || !object(receipt.response)) apiError(422, 'validation_failed');
+    if (receipt.path === '/reservations') {
+      if (!validateReceiptReservation(receipt.response, receipt.user_id, state)) apiError(422, 'validation_failed');
+    } else {
+      const moves = receipt.body.moves;
+      const responses = receipt.response.reservations;
+      if (!Array.isArray(moves) || moves.length < 1 || moves.length > 8 || !Array.isArray(responses) || responses.length !== moves.length ||
+          moves.some((move, index) => !object(move) || typeof move.reference !== 'string' ||
+            responses[index]?.reference !== move.reference || !validateReceiptReservation(responses[index], receipt.user_id, state)) ||
+          new Set(moves.map(move => move.reference)).size !== moves.length) apiError(422, 'validation_failed');
+    }
     const unique = `${receipt.user_id}\0${receipt.key}\0${receipt.method}\0${receipt.path}`;
     if (receiptKeys.has(unique)) apiError(422, 'validation_failed');
     receiptKeys.add(unique);
