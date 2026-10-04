@@ -175,6 +175,7 @@ function createReservation(state, userId, input, nowMs = Date.now()) {
   if (conflicts(state, restaurant.id, record.table_ids, record.starts_at_ms, record.ends_at_ms)) T.fail(409, 'table_unavailable');
   appendHistory(record, restaurant, 'created', createdChanges(record), nowMs);
   state.reservations.push(record);
+  restaurant.revision = (restaurant.revision || 0) + 1;
   return publicReservation(record);
 }
 

@@ -71,6 +71,7 @@ function createSeries(state, userId, input, nowMs = Date.now()) {
   // Work on a private clone so a later invalid occurrence cannot leak reservations, histories or counters.
   const draft = structuredClone(state);
   const draftAnchor = draft.reservations.find(item => item.reference === anchor.reference);
+  const startingRestaurantRevision = restaurant.revision || 0;
   const occurrences = [{ index: 0, reference: draftAnchor.reference, exception: false,
     scheduled_date: draftAnchor.starts_at_local.slice(0, 10) }];
   const datePart = draftAnchor.starts_at_local.slice(0, 10), clockPart = draftAnchor.starts_at_local.slice(10);
@@ -96,7 +97,9 @@ function createSeries(state, userId, input, nowMs = Date.now()) {
     reservation.series_id = seriesId;
   }
   const draftRestaurant = restaurantFor(draft, draftAnchor.restaurant_id);
-  draftRestaurant.revision = (draftRestaurant.revision || 0) + 1;
+  // Creating the generated reservations is one atomic series operation: expose one
+  // restaurant revision change, not one per internally-created occurrence.
+  draftRestaurant.revision = startingRestaurantRevision + 1;
   state.reservations = draft.reservations;
   state.series = draft.series;
   state.restaurants = draft.restaurants;
