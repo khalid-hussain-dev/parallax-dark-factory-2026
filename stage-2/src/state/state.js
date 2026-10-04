@@ -164,6 +164,16 @@ function validateReceiptReservation(value, receiptUserId, state) {
   } catch { return false; }
 }
 
+function sameReservationTables(requested, response) {
+  const requestedIds = Array.isArray(requested.table_ids) ? requested.table_ids :
+    (typeof requested.table_id === 'string' ? [requested.table_id] : null);
+  const responseIds = Array.isArray(response.table_ids) ? response.table_ids :
+    (typeof response.table_id === 'string' ? [response.table_id] : null);
+  return !!requestedIds && !!responseIds && requestedIds.length === responseIds.length &&
+    new Set(requestedIds).size === requestedIds.length &&
+    requestedIds.every(id => typeof id === 'string' && responseIds.includes(id));
+}
+
 function validateImportedState(value) {
   if (!object(value) || !Array.isArray(value.users) || !Array.isArray(value.restaurants) || !Array.isArray(value.reservations) || !Array.isArray(value.tokens) || !Array.isArray(value.receipts)) apiError(422, 'validation_failed');
   const state = structuredClone(value);
@@ -224,7 +234,10 @@ function validateImportedState(value) {
   for (const receipt of state.receipts) {
     if (!object(receipt) || !users.has(receipt.user_id) || typeof receipt.key !== 'string' || receipt.key.length < 1 || receipt.key.length > 255 || receipt.method !== 'POST' || !['/reservations', '/reservation-moves'].includes(receipt.path) || !object(receipt.body) || receipt.status !== 201 || !object(receipt.response)) apiError(422, 'validation_failed');
     if (receipt.path === '/reservations') {
-      if (!validateReceiptReservation(receipt.response, receipt.user_id, state)) apiError(422, 'validation_failed');
+      const response = receipt.response;
+      if (!validateReceiptReservation(response, receipt.user_id, state) ||
+          receipt.body.restaurant_id !== response.restaurant_id || receipt.body.party_size !== response.party_size ||
+          receipt.body.starts_at_local !== response.starts_at_local || !sameReservationTables(receipt.body, response)) apiError(422, 'validation_failed');
     } else {
       const moves = receipt.body.moves;
       const responses = receipt.response.reservations;
@@ -232,6 +245,12 @@ function validateImportedState(value) {
           moves.some((move, index) => !object(move) || typeof move.reference !== 'string' ||
             responses[index]?.reference !== move.reference || !validateReceiptReservation(responses[index], receipt.user_id, state)) ||
           new Set(moves.map(move => move.reference)).size !== moves.length) apiError(422, 'validation_failed');
+      for (let i = 0; i < moves.length; i++) {
+        const move = moves[i]; const response = responses[i];
+        if ((Object.hasOwn(move, 'table_id') || Object.hasOwn(move, 'table_ids')) && !sameReservationTables(move, response) ||
+            (Object.hasOwn(move, 'starts_at_local') && move.starts_at_local !== response.starts_at_local) ||
+            (Object.hasOwn(move, 'party_size') && move.party_size !== response.party_size)) apiError(422, 'validation_failed');
+      }
     }
     const unique = `${receipt.user_id}\0${receipt.key}\0${receipt.method}\0${receipt.path}`;
     if (receiptKeys.has(unique)) apiError(422, 'validation_failed');
