@@ -1,14 +1,14 @@
 :root {
   color-scheme: light;
   --ink: #182b27;
-  --muted: #68756e;
+  --muted: #5f6b63;
   --paper: #f5f2ea;
   --card: #fffefa;
   --line: #dddcd1;
   --green: #246753;
   --green-dark: #174d3d;
   --mint: #e3efe7;
-  --gold: #bf8e48;
+  --gold: #80602d;
   --red: #9d3e35;
   --red-pale: #f8e9e5;
   --shadow: 0 20px 55px rgba(34, 49, 42, .09);
