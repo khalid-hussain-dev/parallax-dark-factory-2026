@@ -19,6 +19,7 @@ function apiError(status, code) {
 
 function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 function validId(value) { return typeof value === 'string' && value.length > 0 && value.length <= 64; }
+function validReference(value) { return typeof value === 'string' && /^[A-Z0-9]{6,12}$/.test(value); }
 function stable(value) {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${stable(value[k])}`).join(',')}}`;
@@ -132,7 +133,7 @@ async function fixtureState(fixture) {
       if (seed.table_ids.some(id => typeof id !== 'string')) apiError(400, 'malformed_request');
     }
     if (Object.hasOwn(seed, 'status') && typeof seed.status !== 'string') apiError(400, 'malformed_request');
-    if (!validId(seed.id) || !validId(seed.reference) || !validId(seed.user_id) || !state.users.some(u => u.user_id === seed.user_id) || !Number.isInteger(seed.party_size) || seed.party_size < 1 || (seed.status !== undefined && !['confirmed', 'cancelled'].includes(seed.status))) apiError(422, 'validation_failed');
+    if (!validId(seed.id) || !validReference(seed.reference) || !validId(seed.user_id) || !state.users.some(u => u.user_id === seed.user_id) || !Number.isInteger(seed.party_size) || seed.party_size < 1 || (seed.status !== undefined && !['confirmed', 'cancelled'].includes(seed.status))) apiError(422, 'validation_failed');
     if (state.reservations.some(r => r.reservation_id === seed.id || r.reference === seed.reference)) apiError(422, 'validation_failed');
     try { domain.seedReservation(state, seed, Date.now()); }
     catch { apiError(422, 'validation_failed'); }
@@ -173,7 +174,7 @@ function validateImportedState(value) {
     if (!Object.hasOwn(r, 'table_ids') && Object.hasOwn(r, 'table_id')) r.table_ids = [r.table_id];
     if (!Array.isArray(r.table_ids) || r.table_ids.some(id => typeof id !== 'string') || (Object.hasOwn(r, 'table_id') && (r.table_ids.length !== 1 || r.table_id !== r.table_ids[0]))) apiError(422, 'validation_failed');
     const restaurant = state.restaurants.find(x => x.id === r.restaurant_id);
-    if (!validId(r.reservation_id) || typeof r.reference !== 'string' || !/^[A-Z0-9]{6,12}$/.test(r.reference) || !users.has(r.user_id) || !restaurant || !Number.isInteger(r.party_size) || r.party_size < 1 || !['confirmed', 'cancelled'].includes(r.status) || typeof r.starts_at_local !== 'string' || typeof r.starts_at !== 'string' || typeof r.ends_at !== 'string' || !validRfc3339(r.created_at) || !Number.isFinite(r.starts_at_ms) || !Number.isFinite(r.ends_at_ms) || r.ends_at_ms - r.starts_at_ms !== restaurant.reservation_duration_minutes * 60000 || ids.has(r.reservation_id) || refs.has(r.reference)) apiError(422, 'validation_failed');
+    if (!validId(r.reservation_id) || !validReference(r.reference) || !users.has(r.user_id) || !restaurant || !Number.isInteger(r.party_size) || r.party_size < 1 || !['confirmed', 'cancelled'].includes(r.status) || typeof r.starts_at_local !== 'string' || typeof r.starts_at !== 'string' || typeof r.ends_at !== 'string' || !validRfc3339(r.created_at) || !Number.isFinite(r.starts_at_ms) || !Number.isFinite(r.ends_at_ms) || r.ends_at_ms - r.starts_at_ms !== restaurant.reservation_duration_minutes * 60000 || ids.has(r.reservation_id) || refs.has(r.reference)) apiError(422, 'validation_failed');
     let selection;
     try { selection = domain.selectTables(restaurant, { table_ids: r.table_ids }); }
     catch { apiError(422, 'validation_failed'); }
