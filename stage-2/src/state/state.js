@@ -237,7 +237,9 @@ function validateImportedState(value) {
       const response = receipt.response;
       if (!validateReceiptReservation(response, receipt.user_id, state) ||
           receipt.body.restaurant_id !== response.restaurant_id || receipt.body.party_size !== response.party_size ||
-          receipt.body.starts_at_local !== response.starts_at_local || !sameReservationTables(receipt.body, response)) apiError(422, 'validation_failed');
+          receipt.body.starts_at_local !== response.starts_at_local ||
+          Object.hasOwn(receipt.body, 'table_id') === Object.hasOwn(receipt.body, 'table_ids') ||
+          !sameReservationTables(receipt.body, response)) apiError(422, 'validation_failed');
     } else {
       const moves = receipt.body.moves;
       const responses = receipt.response.reservations;
