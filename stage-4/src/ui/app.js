@@ -103,6 +103,7 @@
     button.innerHTML = `<span class="spinner ${spinnerClasses[kind]}" aria-hidden="true"></span><span>${esc(pendingLabel)}</span>`;
     if (status) status.textContent = pendingLabel;
     return () => {
+      if (status) status.textContent = '';
       if (!button.isConnected) return;
       button.innerHTML = original;
       delete button.dataset.pending;
@@ -110,7 +111,6 @@
       if (originalLabel === null) button.removeAttribute('aria-label');
       else button.setAttribute('aria-label', originalLabel);
       button.disabled = wasDisabled;
-      if (status) status.textContent = '';
       if (originalDescribedBy === null) button.removeAttribute('aria-describedby');
       else button.setAttribute('aria-describedby', originalDescribedBy);
     };
@@ -206,7 +206,8 @@
       const ref = document.getElementById('lookup-reference').value.trim();
       const result = document.getElementById('lookup-result');
       result.innerHTML = '';
-      const stopPending = beginPending(document.querySelector('[data-testid="lookup-submit"]'), 'amber', 'Looking up booking…');
+      const lookupButton = event.submitter || event.currentTarget.querySelector('[data-testid="lookup-submit"]');
+      const stopPending = beginPending(lookupButton, 'amber', 'Looking up booking…');
       try { await showReservation(await request(`/reservations/${encodeURIComponent(ref)}`), result); }
       catch (error) { result.innerHTML = message('reservation-error', 'error', error.status === 401 ? 'Log in to find your booking.' : error.status === 404 ? 'We could not find that booking for this account.' : error.message); }
       finally { stopPending(); }
@@ -274,6 +275,7 @@
     const party = Number(query.party_size);
     if (!query.restaurant_id || !query.date || !/^\d+$/.test(String(query.party_size)) || party < 1) {
       if (sequence === searchSequence) results.innerHTML = message('search-error', 'error', 'Choose a restaurant, date and party size to search.');
+      results.removeAttribute('aria-busy');
       return;
     }
     const stopPending = beginSearchPending(document.getElementById('search'), sequence, preserveBooking ? 'Refreshing availability…' : 'Searching availability…');
