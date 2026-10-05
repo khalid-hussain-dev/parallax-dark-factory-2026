@@ -81,9 +81,10 @@
   const nameForIds = (restaurant, ids) => ids.map(id => restaurant.tables.find(table => table.id === id)?.label || id).join(' + ');
   function beginPending(button, kind, pendingLabel, disable = true) {
     if (!button) return () => {};
+    if (button.dataset.pending === 'true') return null;
     const original = button.innerHTML;
     const originalLabel = button.getAttribute('aria-label');
-    const wasDisabled = button.disabled;
+    const originalAriaDisabled = button.getAttribute('aria-disabled');
     let status = button.parentElement?.querySelector('.action-live-status');
     if (!status && button.parentElement) {
       status = document.createElement('span');
@@ -99,7 +100,7 @@
     button.setAttribute('aria-busy', 'true');
     button.setAttribute('aria-label', pendingLabel);
     if (status) button.setAttribute('aria-describedby', status.id);
-    if (disable) button.disabled = true;
+    if (disable) button.setAttribute('aria-disabled', 'true');
     button.innerHTML = `<span class="spinner ${spinnerClasses[kind]}" aria-hidden="true"></span><span>${esc(pendingLabel)}</span>`;
     if (status) status.textContent = pendingLabel;
     return () => {
@@ -110,7 +111,8 @@
       button.removeAttribute('aria-busy');
       if (originalLabel === null) button.removeAttribute('aria-label');
       else button.setAttribute('aria-label', originalLabel);
-      button.disabled = wasDisabled;
+      if (originalAriaDisabled === null) button.removeAttribute('aria-disabled');
+      else button.setAttribute('aria-disabled', originalAriaDisabled);
       if (originalDescribedBy === null) button.removeAttribute('aria-describedby');
       else button.setAttribute('aria-describedby', originalDescribedBy);
     };
@@ -181,6 +183,7 @@
       const data = Object.fromEntries(new FormData(form));
       const button = form.querySelector('button');
       const stopPending = beginPending(button, 'sage', signup ? 'Creating account…' : 'Signing in…');
+      if (!stopPending) return;
       try {
         const result = await request(`/auth/${signup ? 'signup' : 'login'}`, { method: 'POST', body: JSON.stringify(data) });
         localStorage.setItem(tokenKey, result.token); localStorage.setItem(nameKey, result.display_name);
@@ -203,11 +206,12 @@
     </section>`);
     document.getElementById('lookup-form').addEventListener('submit', async event => {
       event.preventDefault();
+      const lookupButton = event.submitter || event.currentTarget.querySelector('[data-testid="lookup-submit"]');
+      const stopPending = beginPending(lookupButton, 'amber', 'Looking up booking…');
+      if (!stopPending) return;
       const ref = document.getElementById('lookup-reference').value.trim();
       const result = document.getElementById('lookup-result');
       result.innerHTML = '';
-      const lookupButton = event.submitter || event.currentTarget.querySelector('[data-testid="lookup-submit"]');
-      const stopPending = beginPending(lookupButton, 'amber', 'Looking up booking…');
       try { await showReservation(await request(`/reservations/${encodeURIComponent(ref)}`), result); }
       catch (error) { result.innerHTML = message('reservation-error', 'error', error.status === 401 ? 'Log in to find your booking.' : error.status === 404 ? 'We could not find that booking for this account.' : error.message); }
       finally { stopPending(); }
@@ -226,6 +230,7 @@
     </article>`;
     document.getElementById('cancel-booking')?.addEventListener('click', async event => {
       const stopPending = beginPending(event.currentTarget, 'coral', 'Cancelling reservation…');
+      if (!stopPending) return;
       try { await showReservation(await request(`/reservations/${encodeURIComponent(reservation.reference)}/cancel`, { method: 'POST', body: '{}' }), target); }
       catch (error) { target.insertAdjacentHTML('beforeend', message('reservation-error', 'error', error.message || 'This reservation could not be cancelled.')); }
       finally { stopPending(); }
@@ -376,6 +381,8 @@
 
   async function submitBooking(event) {
     event.preventDefault();
+    const button = document.querySelector('[data-testid="booking-submit"]');
+    if (button?.dataset.pending === 'true') return;
     const partyInput = document.getElementById('booking-party-size');
     const body = { restaurant_id: selectedSeat.restaurant_id, table_ids: selectedSeat.table_ids.slice(), starts_at_local: selectedSeat.starts_at_local, party_size: Number(partyInput.value) };
     const bodyKey = canonical(body);
@@ -383,8 +390,8 @@
     if (!pendingBooking || pendingBooking.bodyKey !== bodyKey) pendingBooking = { body, bodyKey, key: newKey() };
     const messages = document.getElementById('booking-messages');
     messages.innerHTML = '';
-    const button = document.querySelector('[data-testid="booking-submit"]');
     const stopPending = beginPending(button, 'amber', 'Confirming reservation…');
+    if (!stopPending) return;
     try {
       const response = await request('/reservations', { method: 'POST', headers: { 'Idempotency-Key': pendingBooking.key }, body: JSON.stringify(pendingBooking.body) });
       pendingBooking = null;
