@@ -21,6 +21,7 @@
     const pendingLabel = Array.from(searchRequests.values()).at(-1);
     if (pendingLabel) {
       button.dataset.pending = 'true';
+      button.dataset.pendingKind = 'amber';
       button.setAttribute('aria-busy', 'true');
       button.setAttribute('aria-label', pendingLabel);
       if (searchButtonStatus) {
@@ -33,6 +34,7 @@
     if (!searchButtonOriginal) return;
     button.innerHTML = searchButtonOriginal.html;
     delete button.dataset.pending;
+    delete button.dataset.pendingKind;
     button.removeAttribute('aria-busy');
     if (searchButtonOriginal.label === null) button.removeAttribute('aria-label');
     else button.setAttribute('aria-label', searchButtonOriginal.label);
@@ -97,6 +99,7 @@
     }
     const originalDescribedBy = button.getAttribute('aria-describedby');
     button.dataset.pending = 'true';
+    button.dataset.pendingKind = kind;
     button.setAttribute('aria-busy', 'true');
     button.setAttribute('aria-label', pendingLabel);
     if (status) button.setAttribute('aria-describedby', status.id);
@@ -108,6 +111,7 @@
       if (!button.isConnected) return;
       button.innerHTML = original;
       delete button.dataset.pending;
+      delete button.dataset.pendingKind;
       button.removeAttribute('aria-busy');
       if (originalLabel === null) button.removeAttribute('aria-label');
       else button.setAttribute('aria-label', originalLabel);

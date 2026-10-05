@@ -59,7 +59,10 @@ h3 { font-size: 20px; }
 .button.secondary:hover { border-color: var(--coral); color: #fff0eb; background: rgba(216,115,106,.18); }
 .button:focus-visible, .link-button:focus-visible, a:focus-visible, .seat:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; box-shadow: 0 0 0 5px rgba(11,15,18,.95); }
 .button:disabled, .button[aria-disabled="true"] { opacity: .86; cursor: progress; transform: none; }
-.button[data-pending="true"] { cursor: progress; }
+.button[data-pending="true"] { opacity: 1; cursor: progress; }
+.button[data-pending-kind="amber"] { color: var(--gold); border-color: var(--amber); background: #13181D; }
+.button[data-pending-kind="sage"] { border-color: var(--sage); background: #13181D; }
+.button[data-pending-kind="coral"] { border-color: var(--coral); background: #13181D; }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 34px 0 13px; }
 .section-heading p { margin: 5px 0 0; color: var(--stone); font-size: 12px; line-height: 1.6; }
 .availability-grid { display: grid; gap: 10px; }
