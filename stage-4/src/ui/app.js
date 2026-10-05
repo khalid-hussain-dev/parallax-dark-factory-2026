@@ -121,6 +121,11 @@
       else button.setAttribute('aria-describedby', originalDescribedBy);
     };
   }
+  // Yield through one paint before network work so pending feedback is visible.
+  // This is request-bound rendering time, not a minimum spinner duration.
+  function yieldForPaint() {
+    return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }
   function capacitiesForDate(venue, policyResponse, date) {
     const policy = (policyResponse.policies || []).filter(item => item.effective_from <= date)
       .sort((a, b) => b.effective_from.localeCompare(a.effective_from) || b.policy_version - a.policy_version)[0];
@@ -159,8 +164,12 @@
       </header>
       <main>${content}</main>
       <footer class="footer">A good table makes room for a good evening.</footer>`;
-    document.getElementById('logout')?.addEventListener('click', () => {
-      localStorage.removeItem(tokenKey); localStorage.removeItem(nameKey); location.href = '/';
+    document.getElementById('logout')?.addEventListener('click', async event => {
+      const stopPending = beginPending(event.currentTarget, 'coral', 'Signing out…');
+      if (!stopPending) return;
+      localStorage.removeItem(tokenKey); localStorage.removeItem(nameKey);
+      await yieldForPaint();
+      location.href = '/';
     });
   }
 
@@ -189,6 +198,7 @@
       const stopPending = beginPending(button, 'sage', signup ? 'Creating account…' : 'Signing in…');
       if (!stopPending) return;
       try {
+        await yieldForPaint();
         const result = await request(`/auth/${signup ? 'signup' : 'login'}`, { method: 'POST', body: JSON.stringify(data) });
         localStorage.setItem(tokenKey, result.token); localStorage.setItem(nameKey, result.display_name);
         location.href = '/';
@@ -216,7 +226,10 @@
       const ref = document.getElementById('lookup-reference').value.trim();
       const result = document.getElementById('lookup-result');
       result.innerHTML = '';
-      try { await showReservation(await request(`/reservations/${encodeURIComponent(ref)}`), result); }
+      try {
+        await yieldForPaint();
+        await showReservation(await request(`/reservations/${encodeURIComponent(ref)}`), result);
+      }
       catch (error) { result.innerHTML = message('reservation-error', 'error', error.status === 401 ? 'Log in to find your booking.' : error.status === 404 ? 'We could not find that booking for this account.' : error.message); }
       finally { stopPending(); }
     });
@@ -235,7 +248,10 @@
     document.getElementById('cancel-booking')?.addEventListener('click', async event => {
       const stopPending = beginPending(event.currentTarget, 'coral', 'Cancelling reservation…');
       if (!stopPending) return;
-      try { await showReservation(await request(`/reservations/${encodeURIComponent(reservation.reference)}/cancel`, { method: 'POST', body: '{}' }), target); }
+      try {
+        await yieldForPaint();
+        await showReservation(await request(`/reservations/${encodeURIComponent(reservation.reference)}/cancel`, { method: 'POST', body: '{}' }), target);
+      }
       catch (error) { target.insertAdjacentHTML('beforeend', message('reservation-error', 'error', error.message || 'This reservation could not be cancelled.')); }
       finally { stopPending(); }
     });
@@ -259,6 +275,7 @@
     results.setAttribute('aria-busy', 'true');
     results.innerHTML = '<div class="empty-state" role="status"><span class="spinner spinner--amber" aria-hidden="true"></span> Loading restaurants…</div>';
     try {
+      await yieldForPaint();
       restaurants = (await request('/restaurants')).restaurants;
       if (!restaurants.length) {
         results.innerHTML = '<div class="empty-state"><strong>No restaurants are taking bookings yet</strong>Please check back soon.</div>';
@@ -290,6 +307,8 @@
     const stopPending = beginSearchPending(document.getElementById('search'), sequence, preserveBooking ? 'Refreshing availability…' : 'Searching availability…');
     results.setAttribute('aria-busy', 'true');
     try {
+      await yieldForPaint();
+      if (sequence !== searchSequence) return;
       const [venue, availability, policyResponse] = await Promise.all([
         request(`/restaurants/${encodeURIComponent(query.restaurant_id)}`),
         request(`/availability?restaurant_id=${encodeURIComponent(query.restaurant_id)}&date=${encodeURIComponent(query.date)}&party_size=${encodeURIComponent(query.party_size)}&explain=true`),
@@ -397,6 +416,7 @@
     const stopPending = beginPending(button, 'amber', 'Confirming reservation…');
     if (!stopPending) return;
     try {
+      await yieldForPaint();
       const response = await request('/reservations', { method: 'POST', headers: { 'Idempotency-Key': pendingBooking.key }, body: JSON.stringify(pendingBooking.body) });
       pendingBooking = null;
       completedBooking = { bodyKey, response };
