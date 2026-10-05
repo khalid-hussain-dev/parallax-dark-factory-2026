@@ -227,8 +227,8 @@
     const restaurantName = restaurant.name || reservation.restaurant_id;
     const ids = reservation.table_ids || [reservation.table_id];
     const labels = nameForIds(restaurant, ids);
-    target.innerHTML = `<article class="reservation-card" data-testid="reservation-detail">
-      <div class="reservation-top"><div><p class="eyebrow">Booking ${esc(reservation.reference)}</p><h2>${esc(restaurantName)}</h2></div><span class="status" data-testid="reservation-status">${esc(reservation.status)}</span></div>
+    target.innerHTML = `<article class="reservation-card ${reservation.status === 'cancelled' ? 'cancelled' : 'confirmed'}" data-testid="reservation-detail">
+      <div class="reservation-top"><div><p class="eyebrow">Booking ${esc(reservation.reference)}</p><h2>${esc(restaurantName)}</h2></div><span class="status ${reservation.status === 'cancelled' ? 'cancelled' : 'confirmed'}" data-testid="reservation-status">${esc(reservation.status)}</span></div>
       <p class="reservation-info"><span data-testid="reservation-tables">${esc(labels)}</span><br>${esc(reservation.starts_at_local.replace('T', ' · '))} · Party of ${esc(reservation.party_size)}</p>
       ${reservation.status === 'confirmed' ? '<button class="button secondary" data-testid="reservation-cancel-button" id="cancel-booking">Cancel reservation</button>' : ''}
     </article>`;
