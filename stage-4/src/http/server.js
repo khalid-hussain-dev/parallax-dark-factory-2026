@@ -134,6 +134,16 @@ async function route(req, res) {
   if (req.method === 'GET' && path === '/assets/app.js') {
     return sendStatic(res, 'text/javascript; charset=utf-8', fs.readFileSync(pathUtil.join(uiRoot, 'app.js')));
   }
+  if (req.method === 'GET' && path === '/assets/brand/tablelight-lockup.png') {
+    return sendStatic(res, 'image/png', fs.readFileSync(pathUtil.join(uiRoot, 'assets', 'brand', 'tablelight-lockup.png')));
+  }
+  if (req.method === 'GET' && path === '/assets/brand/tablelight-icon-128.png') {
+    return sendStatic(res, 'image/png', fs.readFileSync(pathUtil.join(uiRoot, 'assets', 'brand', 'tablelight-icon-128.png')));
+  }
+  if (req.method === 'GET' && ['/assets/brand/tablelight-favicon-16.png', '/assets/brand/tablelight-favicon-32.png'].includes(path)) {
+    const asset = path.endsWith('16.png') ? 'tablelight-favicon-16.png' : 'tablelight-favicon-32.png';
+    return sendStatic(res, 'image/png', fs.readFileSync(pathUtil.join(uiRoot, 'assets', 'brand', asset)));
+  }
   if (req.method === 'GET' && path === '/health') return send(res, 200, { status: 'ok' });
   if (req.method === 'POST' && path === '/_test/reset') {
     const fixture = await bodyOf(req);

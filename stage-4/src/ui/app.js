@@ -4,6 +4,8 @@
   const app = document.getElementById('app');
   const tokenKey = 'tablelight-token';
   const nameKey = 'tablelight-name';
+  const spinnerClasses = { amber: 'spinner--amber', sage: 'spinner--sage', coral: 'spinner--coral' };
+  let actionStatusId = 0;
   let restaurants = [];
   const restaurantDetails = new Map();
   let selectedSeat = null;
@@ -11,6 +13,56 @@
   let completedBooking = null;
   let searchSequence = 0;
   let lastSearch = null;
+  const searchRequests = new Map();
+  let searchButtonOriginal = null;
+  let searchButtonStatus = null;
+  function updateSearchPending(button) {
+    if (!button?.isConnected) return;
+    const pendingLabel = Array.from(searchRequests.values()).at(-1);
+    if (pendingLabel) {
+      button.dataset.pending = 'true';
+      button.setAttribute('aria-busy', 'true');
+      button.setAttribute('aria-label', pendingLabel);
+      if (searchButtonStatus) {
+        button.setAttribute('aria-describedby', searchButtonStatus.id);
+        searchButtonStatus.textContent = pendingLabel;
+      }
+      button.innerHTML = `<span class="spinner spinner--amber" aria-hidden="true"></span><span>${esc(pendingLabel)}</span>`;
+      return;
+    }
+    if (!searchButtonOriginal) return;
+    button.innerHTML = searchButtonOriginal.html;
+    delete button.dataset.pending;
+    button.removeAttribute('aria-busy');
+    if (searchButtonOriginal.label === null) button.removeAttribute('aria-label');
+    else button.setAttribute('aria-label', searchButtonOriginal.label);
+    if (searchButtonOriginal.describedBy === null) button.removeAttribute('aria-describedby');
+    else button.setAttribute('aria-describedby', searchButtonOriginal.describedBy);
+    if (searchButtonStatus) searchButtonStatus.textContent = '';
+    searchButtonOriginal = null;
+  }
+  function beginSearchPending(button, requestId, label) {
+    if (!button) return () => {};
+    if (!searchButtonOriginal) {
+      searchButtonOriginal = { html: button.innerHTML, label: button.getAttribute('aria-label'), describedBy: button.getAttribute('aria-describedby') };
+      searchButtonStatus = button.parentElement?.querySelector('.search-live-status') || null;
+      if (!searchButtonStatus && button.parentElement) {
+        searchButtonStatus = document.createElement('span');
+        searchButtonStatus.className = 'search-live-status sr-only';
+        searchButtonStatus.id = 'search-action-status';
+        searchButtonStatus.setAttribute('role', 'status');
+        searchButtonStatus.setAttribute('aria-live', 'polite');
+        searchButtonStatus.setAttribute('aria-atomic', 'true');
+        button.insertAdjacentElement('afterend', searchButtonStatus);
+      }
+    }
+    searchRequests.set(requestId, label);
+    updateSearchPending(button);
+    return () => {
+      searchRequests.delete(requestId);
+      updateSearchPending(button);
+    };
+  }
 
   class ApiError extends Error {
     constructor(status, code, message) { super(message || code); this.status = status; this.code = code; }
@@ -27,6 +79,42 @@
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
   const nameForIds = (restaurant, ids) => ids.map(id => restaurant.tables.find(table => table.id === id)?.label || id).join(' + ');
+  function beginPending(button, kind, pendingLabel, disable = true) {
+    if (!button) return () => {};
+    const original = button.innerHTML;
+    const originalLabel = button.getAttribute('aria-label');
+    const wasDisabled = button.disabled;
+    let status = button.parentElement?.querySelector('.action-live-status');
+    if (!status && button.parentElement) {
+      status = document.createElement('span');
+      status.className = 'action-live-status sr-only';
+      status.id = `action-status-${++actionStatusId}`;
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      status.setAttribute('aria-atomic', 'true');
+      button.insertAdjacentElement('afterend', status);
+    }
+    const originalDescribedBy = button.getAttribute('aria-describedby');
+    button.dataset.pending = 'true';
+    button.setAttribute('aria-busy', 'true');
+    button.setAttribute('aria-label', pendingLabel);
+    if (status) button.setAttribute('aria-describedby', status.id);
+    if (disable) button.disabled = true;
+    button.innerHTML = `<span class="spinner ${spinnerClasses[kind]}" aria-hidden="true"></span><span>${esc(pendingLabel)}</span>`;
+    if (status) status.textContent = pendingLabel;
+    return () => {
+      if (!button.isConnected) return;
+      button.innerHTML = original;
+      delete button.dataset.pending;
+      button.removeAttribute('aria-busy');
+      if (originalLabel === null) button.removeAttribute('aria-label');
+      else button.setAttribute('aria-label', originalLabel);
+      button.disabled = wasDisabled;
+      if (status) status.textContent = '';
+      if (originalDescribedBy === null) button.removeAttribute('aria-describedby');
+      else button.setAttribute('aria-describedby', originalDescribedBy);
+    };
+  }
   function capacitiesForDate(venue, policyResponse, date) {
     const policy = (policyResponse.policies || []).filter(item => item.effective_from <= date)
       .sort((a, b) => b.effective_from.localeCompare(a.effective_from) || b.policy_version - a.policy_version)[0];
@@ -57,7 +145,7 @@
     const signedIn = Boolean(token());
     app.innerHTML = `
       <header class="site-header">
-        <a class="brand" href="/" aria-label="Parallax Tablelight home"><span class="brand-mark">P</span><span class="brand-word">Parallax <span style="font-weight:500">Tablelight</span></span></a>
+        <a class="brand" href="/" aria-label="Tablelight home"><img class="brand-lockup" src="/assets/brand/tablelight-lockup.png" alt="Tablelight"></a>
         <nav class="nav" aria-label="Main navigation">
           ${signedIn ? '<a href="/">Find a table</a><a href="/lookup">My booking</a>' : '<a href="/">Explore</a><a href="/lookup">Lookup</a>'}
           ${signedIn ? `<span class="user-chip" data-testid="current-user">${esc(userName || 'Guest')}</span><button class="link-button" id="logout" data-testid="logout-button">Log out</button>` : '<a href="/login">Log in</a><a href="/signup">Join</a>'}
@@ -75,7 +163,7 @@
   async function renderAuth(kind) {
     const signup = kind === 'signup';
     shell(`<section class="auth-wrap"><div class="panel auth-card">
-      <p class="eyebrow">Parallax Tablelight</p>
+      <p class="eyebrow">Tablelight</p>
       <h1>${signup ? 'Make it a night.' : 'Welcome back.'}</h1>
       <p class="hero-copy">${signup ? 'Create your diner account to reserve a seat at the restaurants you love.' : 'Sign in to manage a booking or save your next favourite table.'}</p>
       <div id="auth-message"></div>
@@ -83,7 +171,7 @@
         ${signup ? '<div class="field"><label for="display-name">Your name</label><input id="display-name" data-testid="signup-display-name" name="display_name" autocomplete="name" required></div>' : ''}
         <div class="field"><label for="email">Email address</label><input id="email" data-testid="${signup ? 'signup-email' : 'login-email'}" name="email" type="email" autocomplete="email" required></div>
         <div class="field"><label for="password">Password</label><input id="password" data-testid="${signup ? 'signup-password' : 'login-password'}" name="password" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" minlength="${signup ? '8' : '1'}" required></div>
-        <button class="button" type="submit" data-testid="${signup ? 'signup-submit' : 'login-submit'}">${signup ? 'Create account' : 'Log in'}</button>
+        <button class="button auth-action" type="submit" data-testid="${signup ? 'signup-submit' : 'login-submit'}">${signup ? 'Create account' : 'Log in'}</button>
       </form>
       <p class="form-foot">${signup ? 'Already have an account? <a href="/login">Log in</a>' : 'New to Tablelight? <a href="/signup">Create an account</a>'}</p>
     </div></section>`);
@@ -91,14 +179,15 @@
     form.addEventListener('submit', async event => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(form));
-      const button = form.querySelector('button'); button.disabled = true;
+      const button = form.querySelector('button');
+      const stopPending = beginPending(button, 'sage', signup ? 'Creating account…' : 'Signing in…');
       try {
         const result = await request(`/auth/${signup ? 'signup' : 'login'}`, { method: 'POST', body: JSON.stringify(data) });
         localStorage.setItem(tokenKey, result.token); localStorage.setItem(nameKey, result.display_name);
         location.href = '/';
       } catch (error) {
         document.getElementById('auth-message').innerHTML = message('auth-error', 'error', error.message || 'Please check your details and try again.');
-      } finally { button.disabled = false; }
+      } finally { stopPending(); }
     });
   }
 
@@ -117,8 +206,10 @@
       const ref = document.getElementById('lookup-reference').value.trim();
       const result = document.getElementById('lookup-result');
       result.innerHTML = '';
+      const stopPending = beginPending(document.querySelector('[data-testid="lookup-submit"]'), 'amber', 'Looking up booking…');
       try { await showReservation(await request(`/reservations/${encodeURIComponent(ref)}`), result); }
       catch (error) { result.innerHTML = message('reservation-error', 'error', error.status === 401 ? 'Log in to find your booking.' : error.status === 404 ? 'We could not find that booking for this account.' : error.message); }
+      finally { stopPending(); }
     });
   }
 
@@ -133,9 +224,10 @@
       ${reservation.status === 'confirmed' ? '<button class="button secondary" data-testid="reservation-cancel-button" id="cancel-booking">Cancel reservation</button>' : ''}
     </article>`;
     document.getElementById('cancel-booking')?.addEventListener('click', async event => {
-      event.currentTarget.disabled = true;
+      const stopPending = beginPending(event.currentTarget, 'coral', 'Cancelling reservation…');
       try { await showReservation(await request(`/reservations/${encodeURIComponent(reservation.reference)}/cancel`, { method: 'POST', body: '{}' }), target); }
-      catch (error) { event.currentTarget.disabled = false; target.insertAdjacentHTML('beforeend', message('reservation-error', 'error', error.message || 'This reservation could not be cancelled.')); }
+      catch (error) { target.insertAdjacentHTML('beforeend', message('reservation-error', 'error', error.message || 'This reservation could not be cancelled.')); }
+      finally { stopPending(); }
     });
   }
 
@@ -153,16 +245,20 @@
     <section id="results" aria-live="polite"></section>
     <section id="booking-host"></section>`);
     const select = document.getElementById('restaurant');
+    const results = document.getElementById('results');
+    results.setAttribute('aria-busy', 'true');
+    results.innerHTML = '<div class="empty-state" role="status"><span class="spinner spinner--amber" aria-hidden="true"></span> Loading restaurants…</div>';
     try {
       restaurants = (await request('/restaurants')).restaurants;
       if (!restaurants.length) {
-        document.getElementById('results').innerHTML = '<div class="empty-state"><strong>No restaurants are taking bookings yet</strong>Please check back soon.</div>';
+        results.innerHTML = '<div class="empty-state"><strong>No restaurants are taking bookings yet</strong>Please check back soon.</div>';
       } else {
         select.innerHTML = '<option value="">Choose a restaurant</option>' + restaurants.map(item => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');
+        results.innerHTML = '';
       }
     } catch (error) {
-      document.getElementById('results').innerHTML = message('search-error', 'error', 'We could not load restaurants. Please refresh and try again.');
-    }
+      results.innerHTML = message('search-error', 'error', 'We could not load restaurants. Please refresh and try again.');
+    } finally { results.removeAttribute('aria-busy'); }
     document.getElementById('search').addEventListener('click', () => {
       const query = { restaurant_id: select.value, date: document.getElementById('date').value, party_size: document.getElementById('party').value };
       selectedSeat = null; pendingBooking = null; completedBooking = null;
@@ -180,6 +276,8 @@
       if (sequence === searchSequence) results.innerHTML = message('search-error', 'error', 'Choose a restaurant, date and party size to search.');
       return;
     }
+    const stopPending = beginSearchPending(document.getElementById('search'), sequence, preserveBooking ? 'Refreshing availability…' : 'Searching availability…');
+    results.setAttribute('aria-busy', 'true');
     try {
       const [venue, availability, policyResponse] = await Promise.all([
         request(`/restaurants/${encodeURIComponent(query.restaurant_id)}`),
@@ -193,6 +291,11 @@
     } catch (error) {
       if (sequence !== searchSequence) return;
       results.innerHTML = message('search-error', 'error', error.message || 'Availability could not be loaded.');
+    } finally {
+      stopPending();
+      if (sequence === searchSequence) {
+        results.removeAttribute('aria-busy');
+      }
     }
   }
 
@@ -279,7 +382,7 @@
     const messages = document.getElementById('booking-messages');
     messages.innerHTML = '';
     const button = document.querySelector('[data-testid="booking-submit"]');
-    button.disabled = true; button.textContent = 'Reserving…';
+    const stopPending = beginPending(button, 'amber', 'Confirming reservation…');
     try {
       const response = await request('/reservations', { method: 'POST', headers: { 'Idempotency-Key': pendingBooking.key }, body: JSON.stringify(pendingBooking.body) });
       pendingBooking = null;
@@ -295,7 +398,7 @@
         if (error.code === 'table_unavailable' && lastSearch) runSearch(lastSearch, true);
       }
     } finally {
-      if (button.isConnected) { button.disabled = false; button.textContent = 'Reserve this table'; }
+      stopPending();
     }
   }
 
@@ -311,10 +414,7 @@
     const path = location.pathname;
     if (path === '/signup') return renderAuth('signup');
     if (path === '/login') return renderAuth('login');
-    if (path === '/lookup') {
-      try { restaurants = (await request('/restaurants')).restaurants; } catch { restaurants = []; }
-      return renderLookup();
-    }
+    if (path === '/lookup') return renderLookup();
     return renderHome();
   }
 
