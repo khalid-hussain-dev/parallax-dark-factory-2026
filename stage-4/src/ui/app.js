@@ -233,7 +233,7 @@
 
   async function renderHome() {
     shell(`<section class="hero">
-      <div><p class="eyebrow">Thoughtful tables, memorable nights</p><h1>Make room for <em style="color:var(--green);font-weight:500">something lovely.</em></h1><p class="hero-copy">Find your place at the table. Explore open seats, choose a time and we’ll take care of the details.</p></div>
+      <div><p class="eyebrow">Thoughtful tables, memorable nights</p><h1>Make room for <em style="color:var(--gold);font-weight:500">something lovely.</em></h1><p class="hero-copy">Find your place at the table. Explore open seats, choose a time and we’ll take care of the details.</p></div>
       <aside class="hero-note">From an intimate corner for two to a little more room for the whole table, find the right seat for tonight.</aside>
     </section>
     <section class="panel search-panel" aria-label="Search availability">
