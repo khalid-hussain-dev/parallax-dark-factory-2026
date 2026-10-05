@@ -62,7 +62,7 @@ Earlier reviews also produced concrete corrections, including fresh reservation 
 
 ## Validation and evidence
 
-The final cumulative isolated harness run for the Stage 4 feature revision, commit `218c6ca7240de8bb5c554a776e0921bcb8064f31`, reported:
+The cumulative isolated harness run for the Stage 4 feature revision, commit `218c6ca7240de8bb5c554a776e0921bcb8064f31`, reported:
 
 | Suite | Result |
 |---|---:|
@@ -73,13 +73,15 @@ The final cumulative isolated harness run for the Stage 4 feature revision, comm
 
 The run claimed Stage 4. The final Stage 4 image also passed a no-cache Docker build and no-egress API checks for preview/apply, stale-plan handling, series amendments, replay, import/export, and revision accounting. The cumulative harness includes Stage 2's 17/17 browser checks.
 
+After the UI polish follow-up at `dade94e15b9b8e24d3bd6865ea9c1bb5cb7640f6`, the project owner repeated the full cumulative isolated harness and repeated the UI walkthrough. The post-UI harness again reported Stage 1 120/120, Stage 2 25/25, Stage 3 7/7, and Stage 4 6/6, claiming Stage 4. This owner-run verification happened after the BAND review described below; the room log's statement that the Reviewer did not run a fresh cumulative harness or Docker build refers to the Reviewer's own follow-up work, not the owner's later rerun.
+
 These harness suites are partial and directional; passing the shipped checks does not guarantee passing the full judging suites. Focused probes add evidence but do not exhaust every optimizer tie case, concurrency interleaving, rollback path, or malformed imported-record shape.
 
 ### UI polish follow-up evidence
 
 Reviewer independently checked exact UI revision `dade94e15b9b8e24d3bd6865ea9c1bb5cb7640f6` in headless Chromium 1228 at 1440×960 and 375×812. The selected table remained visibly selected with amber fill, border, and localized glow; neither viewport had horizontal overflow. Reduced-motion mode suppressed the selected-table animation, including while hovered. The reviewer observed request-bound pending states for initial loading, signup, login, availability search, booking, lookup, cancellation, and logout; double activation produced only one booking request, and a simulated `409` cleared the pending state while retaining the booking form and showing the error. Sampled authentication, booking, lookup, and cancellation controls retained focus; search-button focus retention was not confirmed.
 
-The measured pending intervals were approximately 50–183 ms for most actions, so the indicators may be too brief to notice when the local service responds quickly. A two-frame paint opportunity was added before requests, but no arbitrary network delay is imposed. The Reviewer reported JavaScript syntax, commit/diff checks and unchanged Stage 1–3; no fresh Docker build or cumulative harness run was performed for this UI-only revision. These checks supplement, and do not replace, the earlier Stage 4 cumulative harness result on `218c6ca`.
+The measured pending intervals were approximately 50–183 ms for most actions, so the indicators may be too brief to notice when the local service responds quickly. A two-frame paint opportunity was added before requests, but no arbitrary network delay is imposed. The Reviewer reported JavaScript syntax, commit/diff checks and unchanged Stage 1–3. The Reviewer's own follow-up did not include a fresh Docker build or cumulative harness run; after that review, the project owner repeated the full cumulative harness and UI walkthrough as recorded above.
 ## Manual RUN.md and browser walkthrough
 
 I followed each stage folder's `RUN.md` by hand. Stages 1-4 each built and started in a one-container Docker run, and `GET /health` returned `{"status":"ok"}`. Stage 1 is API-only, so it has no browser interface.
@@ -92,7 +94,7 @@ For Stage 4, I searched for a party of two, booked Table 1 at 18:00, looked up t
 
 ## Time and usage
 
-BAND displayed an estimated $4.24 for the main Tablelight room after the UI follow-up (the earlier screenshot showed $2.18 before that work). The two related setup/connectivity-test rooms showed $0.07 and $0.01. By room-header figures, the three-room estimate is $4.32. The agent cards separately showed $1.21 for Reviewer, $1.13 for Implementer, and $1.97 for Planner ($4.31 combined); these seat-card figures do not reconcile with the main room-header figure, and their accounting scope is unclear, so they are recorded separately rather than added to the room total. The final Stage 4 harness run before UI polish was reported at approximately 76.7 seconds; this is test runtime, not development time. No reliable total hands-on duration across all stages or UI follow-up was measured.
+BAND displayed an estimated $4.24 for the main Tablelight room after the UI follow-up (the earlier screenshot showed $2.18 before that work). The two related setup/connectivity-test rooms showed $0.07 and $0.01. By room-header figures, the three-room estimate is $4.32. The agent cards separately showed $1.21 for Reviewer, $1.13 for Implementer, and $1.97 for Planner ($4.31 combined); these seat-card figures do not reconcile with the main room-header figure, and their accounting scope is unclear, so they are recorded separately rather than added to the room total. The Stage 4 feature-revision harness run was reported at approximately 76.7 seconds; this is test runtime, not development time. No total hands-on duration across all stages or UI follow-up was measured.
 
 ## Evidence boundaries
 
