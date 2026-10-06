@@ -12,7 +12,32 @@ const S4 = require('../domain/stage4');
 const uiRoot = pathUtil.join(__dirname, '..', 'ui');
 const htmlPage = fs.readFileSync(pathUtil.join(uiRoot, 'index.html'));
 
-let state = stateFns.emptyState();
+function initialState() {
+  const state = stateFns.emptyState();
+  const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  state.restaurants = [{
+    id: 'tablelight-demo',
+    name: 'Tablelight Demo Bistro',
+    timezone: 'Asia/Karachi',
+    slot_minutes: 30,
+    reservation_duration_minutes: 90,
+    cancellation_cutoff_minutes: 60,
+    opening_hours: weekdays.map(weekday => ({ weekday, opens: '11:00', closes: '22:00' })),
+    tables: [
+      { id: 'demo-table-two', label: 'Window for Two', capacity: 2 },
+      { id: 'demo-table-four', label: 'Garden Table', capacity: 4 },
+      { id: 'demo-table-six', label: 'Private Booth', capacity: 6 },
+    ],
+    combinable: [['demo-table-two', 'demo-table-four']],
+    manager_user_ids: [],
+    policies: [],
+    revision: 0,
+  }];
+  return state;
+}
+
+let state = initialState();
+const testEndpointsEnabled = process.env.TABLELIGHT_ENABLE_TEST_ENDPOINTS === 'true';
 let mutation = Promise.resolve();
 function serialized(fn) {
   const run = mutation.then(fn, fn);
@@ -145,17 +170,17 @@ async function route(req, res) {
     return sendStatic(res, 'image/png', fs.readFileSync(pathUtil.join(uiRoot, 'assets', 'brand', asset)));
   }
   if (req.method === 'GET' && path === '/health') return send(res, 200, { status: 'ok' });
-  if (req.method === 'POST' && path === '/_test/reset') {
+  if (testEndpointsEnabled && req.method === 'POST' && path === '/_test/reset') {
     const fixture = await bodyOf(req);
     const replacement = await stateFns.fixtureState(fixture);
     await serialized(() => { state = replacement; });
     return send(res, 204);
   }
-  if (req.method === 'GET' && path === '/_test/export') {
+  if (testEndpointsEnabled && req.method === 'GET' && path === '/_test/export') {
     await mutation;
     return send(res, 200, { track: 'tablekeeper', format_version: 1, state: structuredClone(state) });
   }
-  if (req.method === 'POST' && path === '/_test/import') {
+  if (testEndpointsEnabled && req.method === 'POST' && path === '/_test/import') {
     const packet = await bodyOf(req); requireObject(packet);
     if (packet.track !== 'tablekeeper' || packet.format_version !== 1 || !Object.hasOwn(packet, 'state')) fail(422, 'validation_failed');
     const replacement = stateFns.validateImportedState(packet.state);

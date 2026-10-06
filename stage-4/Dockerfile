@@ -3,5 +3,7 @@ WORKDIR /app
 COPY package.json ./
 COPY src ./src
 ENV NODE_ENV=production
+# The Docker image is used by the isolated harness, which seeds state through /_test/reset.
+ENV TABLELIGHT_ENABLE_TEST_ENDPOINTS=true
 EXPOSE 8080
 CMD ["npm", "start"]
